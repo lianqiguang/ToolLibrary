@@ -35,7 +35,8 @@ Json::Json(const string & value)  : m_type(json_string)
     m_value.m_string = new string(value);
 }
 
-Json::Json(Type type) : m_type(type) {
+Json::Json(Type type) : m_type(type)
+{
     switch (m_type)
     {
     case json_null:
@@ -63,11 +64,13 @@ Json::Json(Type type) : m_type(type) {
     }
 }
 
-Json::~Json() {
+Json::~Json()
+{
     // clear();
 }
 
-void Json::clear() {
+void Json::clear()
+{
     switch (m_type) {
         case json_null: break;
         case json_bool:
@@ -127,6 +130,7 @@ Json::operator bool()
 
     return m_value.m_bool;
 }
+
 Json::operator int()
 {
     if (m_type != json_int)
@@ -136,6 +140,7 @@ Json::operator int()
 
     return m_value.m_int;
 }
+
 Json::operator double()
 {
     if (m_type != json_double)
@@ -145,6 +150,7 @@ Json::operator double()
 
     return m_value.m_double;
 }
+
 Json::operator string()
 {
     if (m_type != json_string)
@@ -199,12 +205,14 @@ void Json::copy(const Json& other)
 //     return *this;
 // }
 
-void Json::operator=(const Json & other) {
+void Json::operator=(const Json & other)
+{
     clear();
     copy(other);
 }
 
-bool Json::operator == (const Json& other) {
+bool Json::operator == (const Json& other)
+{
     if (m_type != other.m_type)
     {
         return false;
@@ -232,7 +240,8 @@ bool Json::operator == (const Json& other) {
     return false;
 }
 
-bool Json::operator != (const Json& other) {
+bool Json::operator != (const Json& other)
+{
     return !((*this) == other);
 }
 
@@ -357,7 +366,8 @@ string Json::str() const
     return ss.str();
 }
 
-bool Json::asBool() const {
+bool Json::asBool() const
+{
     if (m_type != json_bool)
     {
         throw logic_error("type error, not bool value");
@@ -365,7 +375,8 @@ bool Json::asBool() const {
     return m_value.m_bool;
 }
 
-int Json::asInt() const {
+int Json::asInt() const
+{
     if (m_type != json_int)
     {
         throw logic_error("type error, not int value");
@@ -373,7 +384,8 @@ int Json::asInt() const {
     return m_value.m_int;
 }
 
-double Json::asDouble() const {
+double Json::asDouble() const
+{
     if (m_type != json_int)
     {
         throw logic_error("type error, not double value");
@@ -381,7 +393,8 @@ double Json::asDouble() const {
     return m_value.m_int;
 }
 
-string Json::asString() const {
+string Json::asString() const
+{
     if (m_type != json_string)
     {
         throw logic_error("type error, not string value");
@@ -389,7 +402,8 @@ string Json::asString() const {
     return (*m_value.m_string);
 }
 
-bool Json::has(int index) {
+bool Json::has(int index)
+{
     if (m_type != json_array)
     {
         return false;
@@ -398,12 +412,14 @@ bool Json::has(int index) {
     return (index >= 0 && index < size);
 }
 
-bool Json::has(const char* key) {
+bool Json::has(const char* key)
+{
     string name(key);
     return has(name);
 }
 
-bool Json::has(const string& key) {
+bool Json::has(const string& key)
+{
     if (m_type != json_object)
     {
         return false;
@@ -411,7 +427,8 @@ bool Json::has(const string& key) {
     return ((m_value.m_object)->find(key) != m_value.m_object->end());
 }
 
-void Json::remove(int index) {
+void Json::remove(int index)
+{
     // if (m_type != json_array)
     // {
     //     return;
@@ -429,12 +446,14 @@ void Json::remove(int index) {
     m_value.m_array->erase((m_value.m_array)->begin() + index);
 }
 
-void Json::remove(const char* key) {
+void Json::remove(const char* key)
+{
     string name(key);
     remove(name);
 }
 
-void Json::remove(const string& key) {
+void Json::remove(const string& key)
+{
     if (!has(key)) {
         return;
     }
