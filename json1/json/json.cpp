@@ -460,3 +460,11 @@ void Json::remove(const string& key)
     (*(m_value.m_object))[key].clear();
     (m_value.m_object)->erase(key);
 }
+
+static Json parse(const std::string& jsonStr) {
+    
+}
+
+static Json parseFile(const std::string& filename) {
+
+}

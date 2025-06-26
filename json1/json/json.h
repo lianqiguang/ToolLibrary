@@ -84,10 +84,20 @@ public:
     void remove(int index);
     void remove(const char* key);
     void remove(const string& key);
-    
+
+    static Json parse(const std::string& jsonStr);
+    static Json parseFile(const std::string& filename);
 
     ~Json();
 private:
+
+    class Parse {
+    public:
+        Parse(const string& josnStr);
+    private: 
+        
+    };
+
     union Value
     {
         bool m_bool;
