@@ -2,6 +2,8 @@
 
 #include <string>
 #include <fstream>
+#include <mutex>
+#include <vector>
 
 using namespace std;
 
@@ -39,6 +41,9 @@ public:
     void open(const string& filename);
     void close();
     void log(Level level, const char* file, int line, const char* format, ...);
+    void writeThreadFunc();
+    void flushRemainingLogs();
+    
     void level(Level level) {
         m_level = level;
     }
@@ -51,9 +56,27 @@ private:
     ~Logger();
     void rotate();
 private:
+    static constexpr int MAX_BUFFER_SIZE = 10000;
+
+    static constexpr int MAX_LOG_LENGTH = 1024;
+
     string m_filename;
     ofstream m_fout;
     Level m_level;
+    mutex m_mutex;
+
+    // 双缓冲区
+    vector<std::string> m_frontBuffer;  // 前台缓冲(生产者写入)
+    vector<std::string> m_backBuffer;   // 后台缓冲(消费者写入文件)
+
+    // 同步控制
+    mutex m_bufferMutex;                // 保护缓冲区交换
+    condition_variable m_bufferReady;   // 缓冲区就绪信号
+    atomic<bool> m_shutdown{false};     // 关闭标志
+
+    // 写入线程
+    unique_ptr<std::thread> m_writeThread;
+
     int m_max;
     int m_len;
     static const char* s_level[LEVEL_COUNT];
