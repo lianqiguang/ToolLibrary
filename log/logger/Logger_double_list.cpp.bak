@@ -23,7 +23,7 @@ const char* Logger::s_level[LEVEL_COUNT] = {
 
 Zero::Logger::Logger* Zero::Logger::Logger::m_instance = nullptr;
 
-Logger::Logger() :m_level(DEBUG), m_max(0), m_len(0), m_logQueue(10000) {
+Logger::Logger() :m_level(DEBUG), m_max(0), m_len(0) {
     m_writeThread = make_unique<thread>(&Logger::writeThreadFunc, this);
 }
 
@@ -44,41 +44,16 @@ Logger::~Logger() {
 }
 
 void Logger::flushRemainingLogs() {
-    // 1. 准备本地缓冲区
-    vector<string> remainingLogs;
-    remainingLogs.reserve(1000); // 预分配合理空间
+    lock_guard<mutex> bufferLock(m_bufferMutex);
+    lock_guard<mutex> fileLock(m_mutex);
 
-    // 2. 耗尽无锁队列（无锁操作）
-    string logEntry;
-    while (m_logQueue.try_dequeue(logEntry)) {
-        remainingLogs.emplace_back(move(logEntry));
-    }
-
-    // 3. 如果有日志需要写入
-    if (!remainingLogs.empty()) {
-        try {
-            // lock_guard<std::mutex> fileLock(m_mutex);
-            
-            // 检查文件状态
-            if (!m_fout.is_open()) {
-                open(m_filename);
-            }
-
-            // 批量写入
-            for (const auto& msg : remainingLogs) {
-                m_fout << msg << "\n";
-            }
-            
-            // 确保数据持久化
-            m_fout.flush();
-            
-            // 更新日志长度
-            m_len = m_fout.tellp();
+    if (!m_frontBuffer.empty())
+    {
+        for (const auto& msg : m_frontBuffer)
+        {
+            m_fout << msg << "\n";
         }
-        catch (const std::exception& e) {
-            std::cerr << "Failed to flush remaining logs: " << e.what() << std::endl;
-            // 可添加错误恢复逻辑
-        }
+        m_frontBuffer.clear();
     }
 }
 
@@ -128,8 +103,10 @@ void Logger::log(Level level, const char* file, int line, const char* format, ..
        << file << ":" << line << " "
        << buffer;
 
-
-    m_logQueue.enqueue(ss.str());
+    {
+        lock_guard<mutex> lock(m_bufferMutex);
+        m_frontBuffer.emplace_back(ss.str());
+    }
 
     // 4. 通知消费者线程
     m_bufferReady.notify_one();
@@ -137,27 +114,48 @@ void Logger::log(Level level, const char* file, int line, const char* format, ..
 
 void Logger::writeThreadFunc() {
     const size_t MAX_BATCH_SIZE = 100; // 最大批量写入条数
-    vector<string> batch;
-    batch.reserve(MAX_BATCH_SIZE);
-
     while (true)
     {
-        int count = m_logQueue.try_dequeue_bulk(
-            back_inserter(batch), MAX_BATCH_SIZE
-        );
+        // 1. 加锁检查缓冲区和关闭标志
+        {
+            unique_lock<mutex> lock(m_bufferMutex);
+            
+             // 等待缓冲区有数据或关闭信号
+            m_bufferReady.wait(lock, [this]() {
+                return !m_frontBuffer.empty() || m_shutdown;
+            });
+            
+            if (m_shutdown && m_frontBuffer.empty())
+            {
+                break;
+            }
 
-        if (count > 0)
+            //交换缓冲区
+            // swap(m_frontBuffer, m_backBuffer);
+            m_backBuffer = move(m_frontBuffer);
+            m_frontBuffer.clear();
+        }
+        
+        // 2. 无锁批量写入文件
+        if (!m_backBuffer.empty())
         {
             // m_fout
             try
             {
-                // lock_guard<mutex> lock(m_mutex);
-
-                for (const auto& msg : batch)
+                lock_guard<mutex> lock(m_mutex);
+                
+                int written = 0;
+                while (written < m_backBuffer.size()) 
                 {
-                    m_fout << msg << "\n";
+                    int end = min(written + MAX_BATCH_SIZE, m_backBuffer.size());
+
+                    for (int i = written; i < end; i++)
+                    {
+                        m_fout << m_backBuffer[i] << "\n";
+                    }
+                    m_fout.flush();
+                    written = end;
                 }
-                m_fout.flush();
 
                 // 更新日志长度
                 // m_len = m_fout.tellp();
@@ -175,16 +173,10 @@ void Logger::writeThreadFunc() {
             } catch(...)  {
                 std::cerr << "Log write failed" << '\n';
             }
-            batch.clear();
         }
-        else if (m_shutdown) {
-            break;
-        }
-        else {
-            // 队列可能为空，短暂休眠 无锁，但是需要多次轮询
-            this_thread::sleep_for(chrono::milliseconds(10));
-        }
-        
+
+        // 3. 清空后台缓冲区
+        m_backBuffer.clear();
     }
     
     // 线程退出前确保所有日志写入

@@ -4,7 +4,6 @@
 #include <fstream>
 #include <mutex>
 #include <vector>
-#include "concurrentqueue.h" // 需要包含无锁队列头文件
 
 using namespace std;
 
@@ -66,8 +65,9 @@ private:
     Level m_level;
     mutex m_mutex;
 
-    // 无锁队列
-    moodycamel::ConcurrentQueue<string> m_logQueue;
+    // 双缓冲区
+    vector<std::string> m_frontBuffer;  // 前台缓冲(生产者写入)
+    vector<std::string> m_backBuffer;   // 后台缓冲(消费者写入文件)
 
     // 同步控制
     mutex m_bufferMutex;                // 保护缓冲区交换
